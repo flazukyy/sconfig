@@ -6,11 +6,12 @@
 #include <string>
 #include <ranges>
 #include <compare>
+#include <iostream>
 
-class [[nodiscard]] sconfig_field_not_found final : public std::runtime_error{
+class [[nodiscard]] sconfig_field_not_found final : public std::runtime_error {
 public:
-	explicit sconfig_field_not_found(const std::string& err)
-		: std::runtime_error{ err }
+	explicit sconfig_field_not_found()
+		: std::runtime_error{ "field not found." }
 	{
 	}
 };
@@ -32,6 +33,7 @@ public:
 	using value_type = _Ty;
 
 	sfield() = delete;
+	sfield(const sfield&) = delete;
 
 	[[nodiscard]] const _Ty& get_value() const noexcept {
 		return _value;
@@ -65,18 +67,17 @@ public:
 	friend class sconfig;
 };
 
+template <typename T>
+concept sconfig_name_and_val_pair = requires { typename T::first_type; typename T::second_type; } 
+	&& std::same_as<typename T::first_type, std::string>;
+
 class sconfig {
 	const std::string _path;
 	std::fstream _stream;
-public:
-	explicit sconfig(const std::string& path, bool create_if_not_found = false)
-		: _path{ path } 
-	{
-		if (!std::filesystem::exists({ path }) && !create_if_not_found) 
-			throw std::runtime_error{ path + " is an invalid path." };
 
+	void create_new(const std::string& path) {
 		std::string line{};
-		
+
 		_stream = std::fstream{ path, std::ios::app | std::ios::out | std::ios::in };
 		std::getline(_stream, line);
 
@@ -85,12 +86,33 @@ public:
 			write << "{\n}";
 		}
 	}
+public:
+	explicit sconfig(const std::string& path, bool create_if_not_found = false)
+		: _path{ path }, _stream{}
+	{
+		if (!std::filesystem::exists({ path }) && !create_if_not_found)
+			throw std::runtime_error{ path + " is an invalid path." };
+
+		create_new(path);
+	}
+
+	template <typename... Args>
+		requires (sconfig_name_and_val_pair<std::remove_cvref_t<Args>> && ...)
+	sconfig(const std::string& path, Args&&... args) 
+		: _path{ path }, _stream{}
+	{
+		create_new(path);
+		(add_field(args.first, args.second), ...);
+	}
+
+	sconfig(const sconfig&) = delete;
 
 	[[nodiscard]] bool field_exists(const std::string& field_name) {
 		_stream.clear();
 		_stream.seekp(0);
 
 		std::string line{};
+
 		while (std::getline(_stream, line)) {
 			if (line.find(field_name + ": ") != std::string::npos)
 				return true;
@@ -115,6 +137,8 @@ public:
 				}
 			}
 		}
+
+		throw sconfig_field_not_found{};
 
 		return {};
 	}
@@ -159,7 +183,7 @@ public:
 			}
 		}
 
-		throw sconfig_field_not_found{ "field not found." };
+		throw sconfig_field_not_found{};
 	}
 
 	template <typename _Ty> 
@@ -192,7 +216,7 @@ public:
 		}
 
 		if (!found_line)
-			throw sconfig_field_not_found{ "field not found." };
+			throw sconfig_field_not_found{};
 
 		std::ofstream out{ _path, std::ios::trunc };
 		for (const std::string& line : lines) 
@@ -201,35 +225,49 @@ public:
 
 	template <typename _Ty>
 		requires (!std::is_pointer_v<_Ty> && !std::is_reference_v<_Ty>)
+	[[nodiscard]] bool field_check_value(const std::string& field_name, const _Ty& val) {
+		_stream.clear();
+		_stream.seekp(0);
+
+		if (!field_exists(field_name)) throw sconfig_field_not_found{};
+
+		_Ty field_value{ field_get_value(field_name) };
+
+		return val == field_value;
+	}
+
+	template <typename _Ty> 
+		requires (!std::is_pointer_v<_Ty> && !std::is_reference_v<_Ty>) 
 	void add_field(const std::string& field_name, const _Ty& val) {
 		_stream.clear();
 		_stream.seekp(0);
 
 		std::vector<std::string> lines{};
 		std::string line{};
-		std::string last_line{};
-
-		std::string name{ "    " + field_name + ": " };
 
 		while (std::getline(_stream, line)) {
 			if (line == "}") {
+				std::string full_line{ field_name + ": " };
+
 				if constexpr (std::is_same_v<std::decay_t<_Ty>, bool>)
-					lines.emplace_back(name + (val ? "true" : "false") + '\n');
+					full_line += (val ? "true" : "false");
 				else if constexpr (std::is_arithmetic_v<std::decay_t<_Ty>>)
-					lines.emplace_back(name + std::to_string(val) + '\n');
+					full_line += std::to_string(val);
 				else if constexpr (std::is_same_v<std::decay_t<_Ty>, const char*>)
-					lines.emplace_back(name + val + '\n');
+					full_line += val;
 				else if constexpr (std::is_same_v<std::decay_t<_Ty>, std::string>)
-					lines.emplace_back(name + val + '\n');
+					full_line += val;
+
+				lines.emplace_back(full_line);
 			}
 
-			last_line = line;
-			lines.emplace_back(line + '\n');
+			lines.emplace_back(line);
 		}
 
-		std::ofstream out{ _path, std::ios::trunc };
-		for (const std::string& line : lines)
-			out << line;
+		std::ofstream out{ _path };
+
+		for (const std::string& line : lines) 
+			out << line << '\n';
 	}
 
 	void remove_field(const std::string& field_name) {

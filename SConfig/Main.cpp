@@ -2,21 +2,32 @@
 #include <iostream>
 
 int main() {
-	sconfig config{ R"(test.srip)", true }; 
+	sconfig config{ R"(test.srip)", true };
 
-	config.add_field("test_bool", true);
-	bool x{ config.field_get_value<bool>("test_bool") };
+	config.add_field("test_field", 20);
+
+	int x{ config.field_get_value<int>("test_field") };
 
 	std::cout << x << '\n';
 
-	config.remove_field("test_bool");
+	sfield field{ config.get_field<int>("test_field") };
+
+	field.remove_field();
 
 	try {
-		bool y{ config.field_get_value<bool>("test_bool") };
-	}
+		int test_field{ config.field_get_value<int>("test_field") };
+	} 
 	catch (const sconfig_field_not_found& e) {
 		std::cout << e.what() << '\n';
 	}
+
+	sconfig config2{ R"(test2.srip)",
+		std::pair<std::string, int>{ "field_1", 1 },
+		std::pair<std::string, bool>{ "field_2", false }
+	};
+
+	std::cout << config2.field_get_value<int>("field_1") << '\n';
+
 
 	return 0;
 }
