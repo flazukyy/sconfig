@@ -75,7 +75,7 @@ class sconfig {
 	const std::string _path;
 	std::fstream _stream;
 
-	void create_new(const std::string& path) {
+	void create_new(const std::filesystem::path& path) {
 		_stream = std::fstream{ path, std::ios::app | std::ios::out | std::ios::in };
 		_stream << "{\n}";
 	}
@@ -91,6 +91,17 @@ public:
 		_stream = std::fstream{ path, std::ios::app | std::ios::out | std::ios::in };
 	}
 
+	explicit sconfig(const std::filesystem::path& path, bool create_if_not_found = false)
+		: _path{ path.string() }, _stream{}
+	{
+		if (!std::filesystem::exists(path)) {
+			if (create_if_not_found) { create_new(path); return; }
+			else throw std::runtime_error{ path.string() + " not found." };
+		}
+
+		_stream = std::fstream{ path, std::ios::app | std::ios::out | std::ios::in };
+	}
+
 	template <typename... Args>
 		requires (sconfig_name_and_val_pair<std::remove_cvref_t<Args>> && ...)
 	sconfig(const std::string& path, Args&&... args)
@@ -100,9 +111,6 @@ public:
 		create_new(path);
 		(add_field(args.first, args.second), ...);
 	}
-
-	sconfig(const sconfig&) = delete;
-	sconfig& operator=(const sconfig&) = delete;
 
 	static void create_config(const std::string& path) {
 		if (std::filesystem::exists(path)) return;
@@ -315,20 +323,24 @@ public:
 		return sfield<_Ty>{ *this, field_name, field_get_value<_Ty>(field_name) };
 	}
 
-	explicit operator const std::string& () const {
-		return { _path.c_str() };
+	[[nodiscard]] const std::filesystem::path& get_path() const noexcept {
+		return _path;
 	}
 
-	explicit operator std::string_view() {
-		return { _path.c_str() };
-	}
-
-	explicit operator const char* () {
+	[[nodiscard]] explicit operator std::string_view() const noexcept {
 		return _path.c_str();
 	}
 
-	explicit operator std::filesystem::path() {
+	[[nodiscard]] explicit operator std::string() const {
 		return { _path };
+	}
+
+	[[nodiscard]] explicit operator const char* () const noexcept {
+		return _path.c_str();
+	}
+
+	[[nodiscard]] explicit operator std::filesystem::path() const {
+		return _path;
 	}
 };
 #endif
