@@ -2,7 +2,7 @@
 #include <iostream>
 
 int main() {
-	sconfig config{ R"(test.srip)", true };
+	sconfig config{ std::string{ R"(test.srip)" }, true };
 
 	config.add_field("test_field", 20);
 
@@ -26,13 +26,15 @@ int main() {
 		std::pair<std::string, bool>{ "field_2", true }
 	);
 
-	sconfig config2{ R"(test2.srip)" };
+	sconfig config2{ std::string{ R"(test2.srip)" } };
 
 	config2.add_field<const char*>("field_3", "hello world");
 
 	std::string text{ config2.field_get_value<std::string>("field_3") };
 
 	std::cout << text << '\n';
+
+	config2.delete_config();
 
 	return 0;
 }

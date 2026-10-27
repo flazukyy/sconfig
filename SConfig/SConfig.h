@@ -32,9 +32,6 @@ class sfield {
 public:
 	using value_type = _Ty;
 
-	sfield() = delete;
-	sfield(const sfield&) = delete;
-
 	[[nodiscard]] const _Ty& get_value() const noexcept {
 		return _value;
 	}
@@ -130,12 +127,16 @@ public:
 	}
 
 	static void delete_config(sconfig& config) {
-		std::filesystem::remove(config._path);
 		config._stream = {};
+		std::filesystem::remove(config._path);
 	}
 
 	[[nodiscard]] static bool config_exists(const std::string& path) {
 		return std::filesystem::exists(path);
+	}
+
+	[[nodiscard]] static bool config_exists(const sconfig& config) {
+		return std::filesystem::exists(config._path);
 	}
 
 	[[nodiscard]] bool field_exists(const std::string& field_name) {
@@ -313,8 +314,8 @@ public:
 	}
 
 	void delete_config() {
-		std::filesystem::remove(_path);
 		_stream = {};
+		std::filesystem::remove(_path);
 	}
 
 	template <typename _Ty>
@@ -341,6 +342,14 @@ public:
 
 	[[nodiscard]] explicit operator std::filesystem::path() const {
 		return _path;
+	}
+
+	[[nodiscard]] bool operator==(const sconfig& other) const noexcept {
+		return _path == other._path;
+	}
+
+	[[nodiscard]] bool operator!=(const sconfig& other) const noexcept {
+		return _path != other._path;
 	}
 };
 #endif
