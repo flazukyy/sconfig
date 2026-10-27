@@ -19,7 +19,7 @@ public:
 class sconfig;
 
 template <typename _Ty>
-	requires (!std::is_pointer_v<_Ty> && !std::is_reference_v<_Ty>)
+	requires (!std::is_pointer_v<_Ty>)
 class sfield {
 	sconfig& _config;
 	const std::string _field_name;
@@ -83,10 +83,12 @@ public:
 	explicit sconfig(const std::string& path, bool create_if_not_found = false)
 		: _path{ path }, _stream{}
 	{
-		if (!std::filesystem::exists({ path }) && !create_if_not_found)
-			throw std::runtime_error{ path + " not found." };
+		if (!std::filesystem::exists({ path })) {
+			if (create_if_not_found) { create_new(path); return; }
+			else throw std::runtime_error{ path + " not found." };
+		}
 
-		create_new(path);
+		_stream = std::fstream{ path, std::ios::app | std::ios::out | std::ios::in };
 	}
 
 	template <typename... Args>
@@ -124,6 +126,10 @@ public:
 		config._stream = {};
 	}
 
+	[[nodiscard]] static bool config_exists(const std::string& path) {
+		return std::filesystem::exists(path);
+	}
+
 	[[nodiscard]] bool field_exists(const std::string& field_name) {
 		_stream.clear();
 		_stream.seekp(0);
@@ -146,7 +152,7 @@ public:
 		while (std::getline(_stream, line)) {
 			if (line.find(field_name + ": ") != std::string::npos) {
 				try {
-					char c{ line.at(line.find(field_name) + field_name.length() + 3) };
+					char tmp_c{ line.at(line.find(field_name) + field_name.length() + 3) };
 					return true;
 				}
 				catch (...) {
@@ -161,7 +167,7 @@ public:
 	}
 
 	template <typename _Ty>
-		requires (!std::is_pointer_v<_Ty> && !std::is_reference_v<_Ty>)
+		requires (!std::is_pointer_v<_Ty>)
 	[[nodiscard]] _Ty field_get_value(const std::string& field_name) {
 		_stream.clear();
 		_stream.seekp(0);
@@ -193,8 +199,6 @@ public:
 					return std::stoull(value_str);
 				else if constexpr (std::is_same_v<std::decay_t<_Ty>, char>)
 					return value_str[0];
-				else if constexpr (std::is_same_v<std::decay_t<_Ty>, const char*>)
-					return value_str.c_str();
 				else if constexpr (std::is_same_v<std::decay_t<_Ty>, std::string>)
 					return value_str;
 			}
@@ -204,7 +208,6 @@ public:
 	}
 
 	template <typename _Ty>
-		requires (!std::is_pointer_v<_Ty> && !std::is_reference_v<_Ty>)
 	void field_set_value(const std::string& field_name, const _Ty& val) {
 		_stream.clear();
 		_stream.seekp(0);
@@ -241,12 +244,10 @@ public:
 	}
 
 	template <typename _Ty>
-		requires (!std::is_pointer_v<_Ty> && !std::is_reference_v<_Ty>)
+		requires (!std::is_pointer_v<_Ty>)
 	[[nodiscard]] bool field_check_value(const std::string& field_name, const _Ty& val) {
 		_stream.clear();
 		_stream.seekp(0);
-
-		if (!field_exists(field_name)) throw sconfig_field_not_found{};
 
 		_Ty field_value{ field_get_value(field_name) };
 
@@ -254,7 +255,6 @@ public:
 	}
 
 	template <typename _Ty>
-		requires (!std::is_pointer_v<_Ty> && !std::is_reference_v<_Ty>)
 	void add_field(const std::string& field_name, const _Ty& val) {
 		_stream.clear();
 		_stream.seekp(0);
@@ -310,12 +310,12 @@ public:
 	}
 
 	template <typename _Ty>
-		requires (!std::is_pointer_v<_Ty> && !std::is_reference_v<_Ty>)
-	[[nodiscard]] sfield<_Ty> get_field(const std::string& field_name) {
+		requires (!std::is_pointer_v<_Ty>)
+	[[nodiscard]] sfield<_Ty> get_field_instance(const std::string& field_name) {
 		return sfield<_Ty>{ *this, field_name, field_get_value<_Ty>(field_name) };
 	}
 
-	explicit operator const std::string&() const {
+	explicit operator const std::string& () const {
 		return { _path.c_str() };
 	}
 
@@ -325,6 +325,10 @@ public:
 
 	explicit operator const char* () {
 		return _path.c_str();
+	}
+
+	explicit operator std::filesystem::path() {
+		return { _path };
 	}
 };
 #endif
