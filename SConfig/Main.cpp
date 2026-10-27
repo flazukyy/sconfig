@@ -21,13 +21,16 @@ int main() {
 		std::cout << e.what() << '\n';
 	}
 
-	sconfig config2{ R"(test2.srip)",
-		std::pair<std::string, int>{ "field_1", 1 },
-		std::pair<std::string, bool>{ "field_2", false }
-	};
+	sconfig::create_config( R"(test2.srip)",
+		std::pair<std::string, int>{ "field_1", 2 },
+		std::pair<std::string, bool>{ "field_2", true }
+	);
+
+	sconfig config2{ R"(test2.srip)" };
 
 	std::cout << config2.field_get_value<int>("field_1") << '\n';
 
+	sconfig::delete_config(R"(test2.srip)");
 
 	return 0;
 }

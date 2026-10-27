@@ -8,7 +8,7 @@
 #include <compare>
 #include <iostream>
 
-class [[nodiscard]] sconfig_field_not_found final : public std::runtime_error {
+class [[nodiscard]] sconfig_field_not_found final : public std::runtime_error{
 public:
 	explicit sconfig_field_not_found()
 		: std::runtime_error{ "field not found." }
@@ -68,44 +68,61 @@ public:
 };
 
 template <typename T>
-concept sconfig_name_and_val_pair = requires { typename T::first_type; typename T::second_type; } 
-	&& std::same_as<typename T::first_type, std::string>;
+concept sconfig_name_and_val_pair = requires { typename T::first_type; typename T::second_type; }
+&& std::same_as<typename T::first_type, std::string>;
 
 class sconfig {
 	const std::string _path;
 	std::fstream _stream;
 
 	void create_new(const std::string& path) {
-		std::string line{};
-
 		_stream = std::fstream{ path, std::ios::app | std::ios::out | std::ios::in };
-		std::getline(_stream, line);
-
-		if (line[0] != '{') {
-			std::ofstream write{ path, std::ios::trunc };
-			write << "{\n}";
-		}
+		_stream << "{\n}";
 	}
 public:
 	explicit sconfig(const std::string& path, bool create_if_not_found = false)
 		: _path{ path }, _stream{}
 	{
 		if (!std::filesystem::exists({ path }) && !create_if_not_found)
-			throw std::runtime_error{ path + " is an invalid path." };
+			throw std::runtime_error{ path + " not found." };
 
 		create_new(path);
 	}
 
 	template <typename... Args>
 		requires (sconfig_name_and_val_pair<std::remove_cvref_t<Args>> && ...)
-	sconfig(const std::string& path, Args&&... args) 
+	sconfig(const std::string& path, Args&&... args)
 		: _path{ path }, _stream{}
 	{
+		if (std::filesystem::exists(path)) return;
 		create_new(path);
 		(add_field(args.first, args.second), ...);
 	}
 
 	sconfig(const sconfig&) = delete;
+	sconfig& operator=(const sconfig&) = delete;
+
+	static void create_config(const std::string& path) {
+		if (std::filesystem::exists(path)) return;
+
+		std::ofstream stream = std::ofstream{ path };
+		stream << "{\n}";
+	}
+
+	template <typename... Args>
+		requires (sconfig_name_and_val_pair<std::remove_cvref_t<Args>> && ...)
+	static void create_config(const std::string& path, Args&&... args) {
+		sconfig tmp{ path, std::forward<Args>(args)... };
+	}
+
+	static void delete_config(const std::string& path) {
+		std::filesystem::remove(path);
+	}
+
+	static void delete_config(sconfig& config) {
+		std::filesystem::remove(config._path);
+		config._stream = {};
+	}
 
 	[[nodiscard]] bool field_exists(const std::string& field_name) {
 		_stream.clear();
@@ -186,7 +203,7 @@ public:
 		throw sconfig_field_not_found{};
 	}
 
-	template <typename _Ty> 
+	template <typename _Ty>
 		requires (!std::is_pointer_v<_Ty> && !std::is_reference_v<_Ty>)
 	void field_set_value(const std::string& field_name, const _Ty& val) {
 		_stream.clear();
@@ -219,7 +236,7 @@ public:
 			throw sconfig_field_not_found{};
 
 		std::ofstream out{ _path, std::ios::trunc };
-		for (const std::string& line : lines) 
+		for (const std::string& line : lines)
 			out << line;
 	}
 
@@ -236,8 +253,8 @@ public:
 		return val == field_value;
 	}
 
-	template <typename _Ty> 
-		requires (!std::is_pointer_v<_Ty> && !std::is_reference_v<_Ty>) 
+	template <typename _Ty>
+		requires (!std::is_pointer_v<_Ty> && !std::is_reference_v<_Ty>)
 	void add_field(const std::string& field_name, const _Ty& val) {
 		_stream.clear();
 		_stream.seekp(0);
@@ -266,7 +283,7 @@ public:
 
 		std::ofstream out{ _path };
 
-		for (const std::string& line : lines) 
+		for (const std::string& line : lines)
 			out << line << '\n';
 	}
 
@@ -287,10 +304,27 @@ public:
 			out << line;
 	}
 
+	void delete_config() {
+		std::filesystem::remove(_path);
+		_stream = {};
+	}
+
 	template <typename _Ty>
 		requires (!std::is_pointer_v<_Ty> && !std::is_reference_v<_Ty>)
 	[[nodiscard]] sfield<_Ty> get_field(const std::string& field_name) {
 		return sfield<_Ty>{ *this, field_name, field_get_value<_Ty>(field_name) };
+	}
+
+	explicit operator const std::string&() const {
+		return { _path.c_str() };
+	}
+
+	explicit operator std::string_view() {
+		return { _path.c_str() };
+	}
+
+	explicit operator const char* () {
+		return _path.c_str();
 	}
 };
 #endif
