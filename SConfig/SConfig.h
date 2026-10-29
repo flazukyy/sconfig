@@ -8,7 +8,7 @@
 #include <compare>
 #include <iostream>
 
-class [[nodiscard]] sconfig_field_not_found final : public std::runtime_error{
+class [[nodiscard]] sconfig_field_not_found final : public std::runtime_error {
 public:
 	explicit sconfig_field_not_found()
 		: std::runtime_error{ "field not found." }
@@ -21,52 +21,101 @@ class sconfig;
 template <typename _Ty>
 	requires (!std::is_pointer_v<_Ty>)
 class sfield {
+public:
+	using value_type = _Ty;
+	using reference = _Ty&;
+	using const_reference = const _Ty&;
+	using difference_type = std::ptrdiff_t;
+private:
 	sconfig& _config;
 	const std::string _field_name;
-	_Ty _value;
-
-	sfield(sconfig& config, const std::string& name, const _Ty& val)
-		: _config(config), _field_name(name), _value(val)
+	value_type _value;
+	
+	sfield(sconfig& config, const std::string& name, const_reference val)
+		: _config{ config }, _field_name{ name }, _value{ val }
 	{
 	}
 public:
-	using value_type = _Ty;
-
-	[[nodiscard]] const _Ty& get_value() const noexcept {
-		return _value;
-	}
-
-	void set_value(const _Ty& val) {
+	void set_value(const_reference val) {
 		_config.field_set_value(_field_name, val);
 		_value = val;
-	}
-
-	[[nodiscard]] std::string get_config_path() const {
-		return _config._path;
-	}
-
-	[[nodiscard]] std::string get_name() const noexcept {
-		return _field_name;
 	}
 
 	void remove_field() {
 		_config.remove_field(_field_name);
 	}
 
-	[[nodiscard]] bool operator==(const sfield&) const noexcept = default;
-	[[nodiscard]] bool operator!=(const sfield&) const noexcept = default;
-	[[nodiscard]] bool operator>=(const sfield&) const noexcept = default;
-	[[nodiscard]] bool operator<=(const sfield&) const noexcept = default;
-	[[nodiscard]] bool operator>(const sfield&) const noexcept = default;
-	[[nodiscard]] bool operator<(const sfield&) const noexcept = default;
-	[[nodiscard]] auto operator<=>(const sfield&) const noexcept = default;
+	[[nodiscard]] const_reference get_value() const noexcept {
+		return _value;
+	}
+
+	[[nodiscard]] reference get_value() noexcept {
+		return _value;
+	}
+
+	[[nodiscard]] const std::string& get_config_path() const noexcept {
+		return _config._path;
+	}
+
+	[[nodiscard]] std::string& get_config_path() noexcept {
+		return _config._path;
+	}
+
+	[[nodiscard]] const std::string& get_name() const noexcept {
+		return _field_name;
+	}
+
+	[[nodiscard]] std::string& get_name() noexcept {
+		return _field_name;
+	}
+
+	sfield& operator=(const_reference val) {
+		set_value(val);
+	}
+
+	[[nodiscard]] const_reference operator value_type() const noexcept {
+		return _value;
+	}
+
+	[[nodiscard]] reference operator value_type() noexcept {
+		return _value;
+	}
+
+	[[nodiscard]] bool operator==(const sfield& other) const noexcept {
+		return _field_name == other._field_name && _value == other._value;
+	}
+
+	[[nodiscard]] bool operator!=(const sfield& other) const noexcept {
+		return _field_name != other._field_name && _value != other._value;
+	}
+
+	[[nodiscard]] bool operator>=(const sfield& other) const noexcept {
+		return _field_name >= other._field_name && _value >= other._value;
+	}
+
+	[[nodiscard]] bool operator<=(const sfield& other) const noexcept {
+		return _field_name <= other._field_name && _value <= other._value;
+	}
+
+	[[nodiscard]] bool operator>(const sfield& other) const noexcept {
+		return _field_name > other._field_name && _value > other._value;
+	}
+
+	[[nodiscard]] bool operator<(const sfield& other) const noexcept {
+		return _field_name < other._field_name && _value < other._value;
+	}
+
+	[[nodiscard]] auto operator<=>(const sfield&) const noexcept {
+		return _field_name <=> other._field_name && _value <=> other._value;
+	}
 
 	friend class sconfig;
 };
 
 template <typename T>
-concept sconfig_name_and_val_pair = requires { typename T::first_type; typename T::second_type; }
-&& std::same_as<typename T::first_type, std::string>;
+concept sconfig_name_and_val_pair = requires
+	{ typename T::first_type; typename T::second_type; }
+	&& std::same_as<typename T::first_type, std::string>;
 
 class sconfig {
 	const std::string _path;
