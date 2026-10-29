@@ -8,7 +8,7 @@
 #include <compare>
 #include <iostream>
 
-class [[nodiscard]] sconfig_field_not_found final : public std::runtime_error {
+class [[nodiscard]] sconfig_field_not_found final : public std::runtime_error{
 public:
 	explicit sconfig_field_not_found()
 		: std::runtime_error{ "field not found." }
@@ -30,7 +30,7 @@ private:
 	sconfig& _config;
 	const std::string _field_name;
 	value_type _value;
-	
+
 	sfield(sconfig& config, const std::string& name, const_reference val)
 		: _config{ config }, _field_name{ name }, _value{ val }
 	{
@@ -73,11 +73,11 @@ public:
 		set_value(val);
 	}
 
-	[[nodiscard]] const_reference operator value_type() const noexcept {
+	[[nodiscard]] operator value_type() const noexcept {
 		return _value;
 	}
 
-	[[nodiscard]] reference operator value_type() noexcept {
+	[[nodiscard]] operator value_type() noexcept {
 		return _value;
 	}
 
@@ -105,7 +105,7 @@ public:
 		return _field_name < other._field_name && _value < other._value;
 	}
 
-	[[nodiscard]] auto operator<=>(const sfield&) const noexcept {
+	[[nodiscard]] auto operator<=>(const sfield& other) const noexcept {
 		return _field_name <=> other._field_name && _value <=> other._value;
 	}
 
@@ -114,14 +114,14 @@ public:
 
 template <typename T>
 concept sconfig_name_and_val_pair = requires
-	{ typename T::first_type; typename T::second_type; }
-	&& std::same_as<typename T::first_type, std::string>;
+{ typename T::first_type; typename T::second_type; }
+&& std::same_as<typename T::first_type, std::string>;
 
 class sconfig {
 	const std::string _path;
 	std::fstream _stream;
 
-	void create_new(const std::filesystem::path& path) {
+	void create_new(const std::string& path) {
 		_stream = std::fstream{ path, std::ios::app | std::ios::out | std::ios::in };
 		_stream << "{\n}";
 	}
@@ -140,8 +140,8 @@ public:
 	explicit sconfig(const std::filesystem::path& path, bool create_if_not_found = false)
 		: _path{ path.string() }, _stream{}
 	{
-		if (!std::filesystem::exists(path)) {
-			if (create_if_not_found) { create_new(path); return; }
+		if (!std::filesystem::exists({ path })) {
+			if (create_if_not_found) { create_new(path.string()); return; }
 			else throw std::runtime_error{ path.string() + " not found." };
 		}
 
@@ -172,20 +172,20 @@ public:
 	}
 
 	static void delete_config(const std::string& path) {
-		std::filesystem::remove(path);
+		std::filesystem::remove({ path });
 	}
 
 	static void delete_config(sconfig& config) {
 		config._stream = {};
-		std::filesystem::remove(config._path);
+		std::filesystem::remove({ config._path });
 	}
 
 	[[nodiscard]] static bool config_exists(const std::string& path) {
-		return std::filesystem::exists(path);
+		return std::filesystem::exists({ path });
 	}
 
 	[[nodiscard]] static bool config_exists(const sconfig& config) {
-		return std::filesystem::exists(config._path);
+		return std::filesystem::exists({ config._path });
 	}
 
 	[[nodiscard]] bool field_exists(const std::string& field_name) {
@@ -358,13 +358,14 @@ public:
 		}
 
 		std::ofstream out{ _path, std::ios::trunc };
+
 		for (const std::string& line : lines)
 			out << line;
 	}
 
 	void delete_config() {
 		_stream = {};
-		std::filesystem::remove(_path);
+		std::filesystem::remove({ _path });
 	}
 
 	template <typename _Ty>
@@ -373,8 +374,8 @@ public:
 		return sfield<_Ty>{ *this, field_name, field_get_value<_Ty>(field_name) };
 	}
 
-	[[nodiscard]] const std::filesystem::path& get_path() const noexcept {
-		return _path;
+	[[nodiscard]] std::filesystem::path get_path() const noexcept {
+		return { _path };
 	}
 
 	[[nodiscard]] explicit operator std::string_view() const noexcept {
@@ -382,7 +383,7 @@ public:
 	}
 
 	[[nodiscard]] explicit operator std::string() const {
-		return { _path };
+		return _path;
 	}
 
 	[[nodiscard]] explicit operator const char* () const noexcept {
@@ -390,7 +391,7 @@ public:
 	}
 
 	[[nodiscard]] explicit operator std::filesystem::path() const {
-		return _path;
+		return { _path };
 	}
 
 	[[nodiscard]] bool operator==(const sconfig& other) const noexcept {
