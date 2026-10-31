@@ -16,10 +16,31 @@ public:
 	}
 };
 
+template <typename T>
+concept sconfig_type_is_valid_get =
+std::is_object_v<T> &&
+!std::is_const_v<T> &&
+!std::is_volatile_v<T> &&
+!std::is_abstract_v<T> &&
+!std::is_pointer_v<T>;
+
+template <typename T>
+concept sconfig_type_is_valid =
+std::is_object_v<T> &&
+!std::is_const_v<T> &&
+!std::is_volatile_v<T> &&
+!std::is_abstract_v<T> &&
+(!std::is_pointer_v<T> || std::is_same_v<T, const char*>);
+
+template <typename T>
+concept sconfig_name_and_val_pair = requires
+{ typename T::first_type; typename T::second_type; }
+&& std::same_as<typename T::first_type, std::string>;
+
 class sconfig;
 
 template <typename _Ty>
-	requires (!std::is_pointer_v<_Ty>)
+	requires sconfig_type_is_valid_get<_Ty>
 class sfield {
 public:
 	using value_type = _Ty;
@@ -71,13 +92,10 @@ public:
 
 	sfield& operator=(const_reference val) {
 		set_value(val);
+		return *this;
 	}
 
 	[[nodiscard]] operator value_type() const noexcept {
-		return _value;
-	}
-
-	[[nodiscard]] operator value_type() noexcept {
 		return _value;
 	}
 
@@ -111,11 +129,6 @@ public:
 
 	friend class sconfig;
 };
-
-template <typename T>
-concept sconfig_name_and_val_pair = requires
-{ typename T::first_type; typename T::second_type; }
-&& std::same_as<typename T::first_type, std::string>;
 
 class sconfig {
 	const std::string _path;
@@ -202,7 +215,7 @@ public:
 		return {};
 	}
 
-	[[nodiscard]] bool field_has_value(const std::string& field_name) {
+	[[nodiscard]] bool field_contains_value(const std::string& field_name) {
 		_stream.clear();
 		_stream.seekp(0);
 
@@ -210,8 +223,9 @@ public:
 		while (std::getline(_stream, line)) {
 			if (line.find(field_name + ": ") != std::string::npos) {
 				try {
-					char tmp_c{ line.at(line.find(field_name) + field_name.length() + 3) };
-					return true;
+					char tmp_c{ line.at(line.find(field_name) + field_name.length() + 2) };
+					if (tmp_c == ' ') return {};
+					else return true;
 				}
 				catch (...) {
 					return {};
@@ -225,7 +239,7 @@ public:
 	}
 
 	template <typename _Ty>
-		requires (!std::is_pointer_v<_Ty>)
+		requires sconfig_type_is_valid_get<_Ty>
 	[[nodiscard]] _Ty field_get_value(const std::string& field_name) {
 		_stream.clear();
 		_stream.seekp(0);
@@ -266,6 +280,7 @@ public:
 	}
 
 	template <typename _Ty>
+		requires sconfig_type_is_valid<_Ty>
 	void field_set_value(const std::string& field_name, const _Ty& val) {
 		_stream.clear();
 		_stream.seekp(0);
@@ -302,7 +317,7 @@ public:
 	}
 
 	template <typename _Ty>
-		requires (!std::is_pointer_v<_Ty>)
+		requires sconfig_type_is_valid_get<_Ty>
 	[[nodiscard]] bool field_check_value(const std::string& field_name, const _Ty& val) {
 		_stream.clear();
 		_stream.seekp(0);
@@ -313,6 +328,7 @@ public:
 	}
 
 	template <typename _Ty>
+		requires sconfig_type_is_valid<_Ty>
 	void add_field(const std::string& field_name, const _Ty& val) {
 		_stream.clear();
 		_stream.seekp(0);
@@ -369,7 +385,7 @@ public:
 	}
 
 	template <typename _Ty>
-		requires (!std::is_pointer_v<_Ty>)
+		requires sconfig_type_is_valid_get<_Ty>
 	[[nodiscard]] sfield<_Ty> get_field_instance(const std::string& field_name) {
 		return sfield<_Ty>{ *this, field_name, field_get_value<_Ty>(field_name) };
 	}
