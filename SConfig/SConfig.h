@@ -8,7 +8,7 @@
 #include <compare>
 #include <iostream>
 
-class [[nodiscard]] sconfig_field_not_found final : public std::runtime_error {
+class [[nodiscard]] sconfig_field_not_found final : public std::runtime_error{
 public:
 	explicit sconfig_field_not_found()
 		: std::runtime_error{ "field not found." }
@@ -394,20 +394,12 @@ public:
 		return { _path };
 	}
 
-	[[nodiscard]] operator std::string_view() const noexcept {
-		return _path.c_str();
-	}
-
-	[[nodiscard]] operator std::string() const {
-		return _path;
-	}
-
 	[[nodiscard]] operator const char* () const noexcept {
 		return _path.c_str();
 	}
 
 	[[nodiscard]] operator std::filesystem::path() const {
-		return { _path };
+		return _path;
 	}
 
 	[[nodiscard]] bool operator==(const sconfig& other) const noexcept {
